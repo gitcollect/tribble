@@ -2,6 +2,7 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="save-input.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="SFAPI">
@@ -496,5 +497,6 @@
     </ClInclude>
     <ClInclude Include="tribble-srv.hpp" />
     <ClInclude Include="main.hpp" />
+    <ClInclude Include="save-input.hpp" />
   </ItemGroup>
 </Project>

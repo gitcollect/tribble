@@ -42,11 +42,13 @@ static void usage()
 	sprintf_s(buf, 2048,
 		"tribble is a fuzzer that uses runtime instrumentation\n"
 		"to find vulnerabilities in San Andreas: Multiplayer scripts.\n\n"
+		"\t/weaponfinder save [directory]\n\t\tturn corpus generation on or off\n"
+		"\t\tcorpus data will be saved to corpora/[directory]\n"
 		HELP_OPTION_DESCRIPTION
 		VERSION_OPTION_DESCRIPTION
 		);
 
-	SF->getSAMP()->getDialog()->ShowDialog(1, 0, "weaponfinder", buf, "Hide", "");
+	SF->getSAMP()->getDialog()->ShowDialog(1, 0, "tribble", buf, "Hide", "");
 	return;
 }
 
@@ -62,6 +64,8 @@ void CALLBACK cmd_tribble(std::string param)
 		usage();
 	else if (!_strcmpi(param_str, "version"))
 		version();
+	else if (!_strcmpi(param_str, "save"))
+		tog_saving(strtok(NULL, ""));
 	else
 		usage();
 }
@@ -80,7 +84,7 @@ void CALLBACK mainloop()
 
 		pprintf("tribble-srv " PROGRAM_VERSION " has been loaded, use /tribble-srv for general help.");
 		SF->getSAMP()->registerChatCommand("tribble-srv", cmd_tribble);
-
+		SF->getRakNet()->registerRakNetCallback(RakNetScriptHookType::RAKHOOK_TYPE_OUTCOMING_RPC, hook_save_corpus);
 		init = true;
 	}
 }
