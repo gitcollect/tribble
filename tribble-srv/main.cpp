@@ -56,7 +56,6 @@ void CALLBACK cmd_tribble(std::string param)
 {
 	char *param_str = _strdup(param.c_str());
 	char *token = NULL;
-	int font_size = 0;
 
 	token = strtok(param_str, " ");
 
@@ -66,6 +65,10 @@ void CALLBACK cmd_tribble(std::string param)
 		version();
 	else if (!_strcmpi(param_str, "save"))
 		tog_saving(strtok(NULL, ""));
+	else if (!_strcmpi(param_str, "mutate")) {
+		token = strtok(NULL, "");
+		fuzz_mutate(token, strlen(token));
+	}
 	else
 		usage();
 }

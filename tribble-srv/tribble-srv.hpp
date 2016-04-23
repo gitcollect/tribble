@@ -21,3 +21,4 @@
 
 #include "main.hpp"
 #include "save-input.hpp"
+#include "fuzz-mutate.hpp"

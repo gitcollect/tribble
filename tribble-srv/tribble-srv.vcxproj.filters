@@ -3,6 +3,7 @@
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="save-input.cpp" />
+    <ClCompile Include="fuzz-mutate.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="SFAPI">
@@ -498,5 +499,6 @@
     <ClInclude Include="tribble-srv.hpp" />
     <ClInclude Include="main.hpp" />
     <ClInclude Include="save-input.hpp" />
+    <ClInclude Include="fuzz-mutate.hpp" />
   </ItemGroup>
 </Project>
