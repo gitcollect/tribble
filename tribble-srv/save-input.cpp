@@ -3,7 +3,7 @@ static corpus_data data;
 
 void tog_saving(char *dir)
 {
-	int dir_ret;
+	int32_t dir_ret;
 	char real_path[MAX_PATH];
 
 	if (data.saving_enabled) {
@@ -34,8 +34,8 @@ bool CALLBACK hook_save_corpus(stRakNetHookParams* params)
 {
 	char cmd_text[128];
 	char path[MAX_PATH];
-	int cmd_len = -1;
 	char *ip_addr, *token;
+	int32_t cmd_len = -1;
 	FILE *fcorpus;
 
 	if (!data.saving_enabled) return true;
