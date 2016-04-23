@@ -79,13 +79,6 @@ void CALLBACK mainloop()
 		pprintf("tribble-srv " PROGRAM_VERSION " has been loaded, use /tribble-srv for general help.");
 		SF->getSAMP()->registerChatCommand("tribble-srv", cmd_tribble);
 
-		FILE *fp;
-		fp = fopen("%APPDATA%\tribble-srv\file.txt", "a+");
-		if (fp) {
-			fprintf(fp, "lolol\n");
-		}
-		fclose(fp);
-
 		init = true;
 	}
 }
