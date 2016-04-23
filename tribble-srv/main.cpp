@@ -53,15 +53,17 @@ static void usage()
 void CALLBACK cmd_tribble(std::string param)
 {
 	char *param_str = _strdup(param.c_str());
-	char *tokens[3] = { NULL, NULL };
+	char *token = NULL;
 	int font_size = 0;
 
-	tokens[0] = strtok(param_str, " ");
+	token = strtok(param_str, " ");
 
 	if (param.empty() || !_strcmpi(param_str, "help"))
 		usage();
 	else if (!_strcmpi(param_str, "version"))
 		version();
+	else
+		usage();
 }
 
 void CALLBACK mainloop()
