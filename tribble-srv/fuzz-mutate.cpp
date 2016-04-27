@@ -50,7 +50,7 @@ static bool is_bit_byte_flip(uint32_t xor)
 	}
 
 	/* 0b1, 0b11 and 0b1111 are always good, since we're
-	 * using 1-3 walking bits.
+	 * using 1, 2 & 4 walking bits.
 	 */
 	if (xor == 0b1 || xor == 0b11 || xor == 0b1111)
 		return 1;
@@ -68,6 +68,91 @@ static bool is_bit_byte_flip(uint32_t xor)
 	 */
 	if (xor == 0xff || xor == 0xffff || xor == 0xffffffff)
 		return 1;
+
+	return 0;
+}
+
+/* Checks if old_val can be transformed into new_val by the arithmetic
+ * step of the fuzzer.
+ */
+static bool is_arith(uint32_t old_val, uint32_t new_val, uint8_t len)
+{
+	uint32_t oldv = 0, newv = 0, diffs = 0;
+	uint32_t val1 = 0, val2 = 0;
+
+	// Trivial case.
+	if (old_val == new_val)
+		return 1;
+
+	/* Go through every single byte and check if there is
+	 * a difference that's indicative of a possible arithmetic
+	 * operation.
+	 */
+	for (int32_t i = 0; i < len; i++) {
+		val1 = old_val >> (8 * i);
+		val2 = new_val >> (8 * i);
+
+		if (val1 != val2) {
+			diffs++;
+			oldv = val1;
+			newv = val2;
+		}
+	}
+
+	/* If there's only a one-byte difference btw. the two values,
+	 * this could possibly be an arithmetic operation, but only if
+	 * the range is good.
+	 */
+	if (diffs == 1)
+		if ((uint8_t)(oldv - newv) <= MAX_ARITH_VAL || (uint8_t)(newv - oldv) <= MAX_ARITH_VAL)
+			return 1;
+
+	// No other 1-byte case is good.
+	if (len == 1)
+		return 0;
+
+	// Do the same thing with words.
+	diffs = 0;
+
+	for (int32_t i = 0; i < len / 2; i++) {
+		val1 = old_val >> (16 * i),
+		val2 = new_val >> (16 * i);
+
+		if (val1 != val2) {
+			diffs++;
+			oldv = val1;
+			newv = val2;
+		}
+	}
+
+	/* If there's only a two-byte difference btw. the two values,
+	* this could possibly be an arithmetic operation, but only if
+	* the range is good.
+	*/
+	if (diffs == 1) {
+		if ((uint16_t)(oldv - newv) <= MAX_ARITH_VAL || (uint16_t)(newv - oldv) <= MAX_ARITH_VAL)
+			return 1;
+
+		// Big endian mode.
+		oldv = swap_16(oldv);
+		newv = swap_16(newv);
+
+		if ((uint16_t)(oldv - newv) <= MAX_ARITH_VAL || (uint16_t)(newv - oldv) <= MAX_ARITH_VAL)
+			return 1;
+	}
+
+	// Same thing goes for dwords. No need to shift bits, obviously.
+	if (len == 4) {
+		if ((uint32_t)(old_val - new_val) <= MAX_ARITH_VAL || (uint32_t)(new_val - old_val) <= MAX_ARITH_VAL)
+			return 1;
+
+		// Big endian mode.
+		new_val = swap_32(new_val);
+		old_val = swap_32(old_val);
+
+		if ((uint32_t)(old_val - new_val) <= MAX_ARITH_VAL || (uint32_t)(new_val - old_val) <= MAX_ARITH_VAL)
+			return 1;
+	}
 
 	return 0;
 }
@@ -145,6 +230,9 @@ static bool interesting_8(char *buf, int32_t len)
 		orig_val = buf[cur];
 
 		for (int32_t i = 0; i < sizeof(values); i++) {
+			if (is_bit_byte_flip(orig_val ^ (uint8_t)values[i]) || is_arith(orig_val, (uint8_t)values[i], 1))
+				continue;
+
 			buf[cur] = values[i];
 			pprintf(buf);
 			buf[cur] = orig_val;
@@ -170,10 +258,20 @@ static bool interesting_16(char *buf, int32_t len)
 		orig_val = *(uint16_t*)(buf + cur);
 
 		for (int32_t i = 0; i < sizeof(values) / sizeof(int16_t); i++) {
+			if (is_bit_byte_flip(orig_val ^ (uint16_t)values[i]) || is_arith(orig_val, (uint16_t)values[i], 2))
+				continue;
+
 			*(uint16_t*)(buf + cur) = values[i];
 			pprintf(buf);
 
-			// Change endianness and try again.
+			/* Change endianness and try again. Don't do this
+			 * in cases where the endianness doesn't matter.
+			 */
+			if ((uint16_t)values[i] == swap_16(values[i]) ||
+				is_bit_byte_flip(orig_val ^ swap_16(values[i])) ||
+				is_arith(orig_val, swap_16(values[i]), 2))
+				continue;
+
 			*(uint16_t*)(buf + cur) = swap_16(values[i]);
 			pprintf(buf);
 		}
@@ -202,10 +300,20 @@ static bool interesting_32(char *buf, int32_t len)
 		orig_val = *(uint32_t*)(buf + cur);
 
 		for (int32_t i = 0; i < sizeof(values) / sizeof(int16_t); i++) {
+			if (is_bit_byte_flip(orig_val ^ (uint32_t)values[i]) || is_arith(orig_val, (uint32_t)values[i], 4))
+				continue;
+
 			*(uint32_t*)(buf + cur) = values[i];
 			pprintf(buf);
 
-			// Change endianness and try again.
+			/* Change endianness and try again. Don't do this
+			 * in cases where the endianness doesn't matter.
+			 */
+			if ((uint32_t)values[i] == swap_32(values[i]) ||
+				is_bit_byte_flip(orig_val ^ swap_32(values[i])) ||
+				is_arith(orig_val, swap_32(values[i]), 4))
+				continue;
+
 			*(uint32_t*)(buf + cur) = swap_32(values[i]);
 			pprintf(buf);
 		}
