@@ -157,6 +157,60 @@ static bool is_arith(uint32_t old_val, uint32_t new_val, uint8_t len)
 	return 0;
 }
 
+static bool is_interest(uint32_t old_val, uint32_t new_val, uint8_t len, uint8_t check_le)
+{
+	static int8_t values_8[] = { -128, -1, 0, 1, 16, 32, 64, 100, 127 };
+	static int16_t values_16[] = { -128, -1, 0, 1, 16, 32, 64, 100, 127, -32768, -129, 128, 255, 256, 512, 1000, 1024, 4096, 32767 };
+	static int32_t values_32[] = { -128, -1, 0, 1, 16, 32, 64, 100, 127, -32768, -129, 128, 255, 256, 512, 1000, 1024, 4096, 32767, -2147483648LL, -100663046, -32769, 32768, 65535, 65536, 100663045, 2147483647 };
+
+	uint32_t val = 0;
+
+	// Trivial case.
+	if (old_val == new_val)
+		return 1;
+
+	// Byte case.
+	for (int32_t i = 0; i < len; i++) {
+		for (int32_t j = 0; j < sizeof(values_8); j++) {
+			val = (old_val & ~(0xff << (i * 8))) | (((uint8_t)values_8[j]) << (i * 8));
+
+			if (new_val == val)
+				return 1;
+		}
+	}
+
+	if (len == 2 && !check_le)
+		return 0;
+
+	// Word & dword case.
+	for (int32_t i = 0; i < len - 1; i++) {
+		for (int32_t j = 0; j < sizeof(values_16) / sizeof(uint16_t); j++) {
+
+			val = (old_val & ~(0xffff << (i * 8))) | (((uint16_t)values_16[j]) << (i * 8));
+
+			if (new_val == val)
+				return 1;
+
+			if (len > 2) {
+				val = (old_val & ~(0xffff << (i * 8))) | (swap_16(values_16[j]) << (i * 8));
+
+				if (new_val == val)
+					return 1;
+			}
+		}
+	}
+
+	// Dword case.
+	if (len == 4 && check_le) {
+		for (int32_t i = 0; i < sizeof(values_32) / sizeof(uint32_t); i++) {
+			if (new_val == (uint32_t)values_32[i])
+				return 1;
+		}
+	}
+
+	return 0;
+}
+
 /* Go through the whole buffer and use n
  * "walking" bitflips (msb->lsb).
  */
@@ -233,6 +287,8 @@ static bool interesting_8(char *buf, int32_t len)
 			if (is_bit_byte_flip(orig_val ^ (uint8_t)values[i]) || is_arith(orig_val, (uint8_t)values[i], 1))
 				continue;
 
+			pprintf("buf[%u] (%c, %d) replaced with (%c, %d)", i, orig_val, orig_val, values[i], values[i]);
+
 			buf[cur] = values[i];
 			pprintf(buf);
 			buf[cur] = orig_val;
@@ -246,9 +302,7 @@ static bool interesting_8(char *buf, int32_t len)
  */
 static bool interesting_16(char *buf, int32_t len)
 {
-	static int16_t values[] = { -128, -1, 0, 1, 16, 32, 64, 100, 127,
-								-32768, -129, 128, 255, 256, 512, 1000,
-								1024, 4096, 32767 };
+	static int16_t values[] = { -128, -1, 0, 1, 16, 32, 64, 100, 127, -32768, -129, 128, 255, 256, 512, 1000, 1024, 4096, 32767 };
 	uint16_t orig_val = 0;
 
 	if (len < 2)
@@ -258,7 +312,9 @@ static bool interesting_16(char *buf, int32_t len)
 		orig_val = *(uint16_t*)(buf + cur);
 
 		for (int32_t i = 0; i < sizeof(values) / sizeof(int16_t); i++) {
-			if (is_bit_byte_flip(orig_val ^ (uint16_t)values[i]) || is_arith(orig_val, (uint16_t)values[i], 2))
+			if (is_bit_byte_flip(orig_val ^ (uint16_t)values[i])
+				|| is_arith(orig_val, (uint16_t)values[i], 2)
+				|| is_interest(orig_val, (uint16_t)values[i], 2, 0))
 				continue;
 
 			*(uint16_t*)(buf + cur) = values[i];
@@ -267,9 +323,10 @@ static bool interesting_16(char *buf, int32_t len)
 			/* Change endianness and try again. Don't do this
 			 * in cases where the endianness doesn't matter.
 			 */
-			if ((uint16_t)values[i] == swap_16(values[i]) ||
-				is_bit_byte_flip(orig_val ^ swap_16(values[i])) ||
-				is_arith(orig_val, swap_16(values[i]), 2))
+			if ((uint16_t)values[i] == swap_16(values[i])
+				|| is_bit_byte_flip(orig_val ^ swap_16(values[i]))
+				|| is_arith(orig_val, swap_16(values[i]), 2)
+				|| is_interest(orig_val, swap_16(values[i]), 2, 1))
 				continue;
 
 			*(uint16_t*)(buf + cur) = swap_16(values[i]);
@@ -286,11 +343,7 @@ static bool interesting_16(char *buf, int32_t len)
  */
 static bool interesting_32(char *buf, int32_t len)
 {
-	static int32_t values[] = { -128, -1, 0, 1, 16, 32, 64, 100, 127,
-								-32768, -129, 128, 255, 256, 512, 1000,
-								1024, 4096, 32767, -2147483648LL,
-								-100663046, -32769, 32768, 65535, 65536,
-								100663045, 2147483647 };
+	static int32_t values[] = { -128, -1, 0, 1, 16, 32, 64, 100, 127, -32768, -129, 128, 255, 256, 512, 1000, 1024, 4096, 32767, -2147483648LL, -100663046, -32769, 32768, 65535, 65536, 100663045, 2147483647 };
 	uint32_t orig_val = 0;
 
 	if (len < 4)
@@ -300,7 +353,9 @@ static bool interesting_32(char *buf, int32_t len)
 		orig_val = *(uint32_t*)(buf + cur);
 
 		for (int32_t i = 0; i < sizeof(values) / sizeof(int16_t); i++) {
-			if (is_bit_byte_flip(orig_val ^ (uint32_t)values[i]) || is_arith(orig_val, (uint32_t)values[i], 4))
+			if (is_bit_byte_flip(orig_val ^ (uint32_t)values[i])
+				|| is_arith(orig_val, (uint32_t)values[i], 4)
+				|| is_interest(orig_val, (uint32_t)values[i], 4, 0))
 				continue;
 
 			*(uint32_t*)(buf + cur) = values[i];
@@ -309,9 +364,10 @@ static bool interesting_32(char *buf, int32_t len)
 			/* Change endianness and try again. Don't do this
 			 * in cases where the endianness doesn't matter.
 			 */
-			if ((uint32_t)values[i] == swap_32(values[i]) ||
-				is_bit_byte_flip(orig_val ^ swap_32(values[i])) ||
-				is_arith(orig_val, swap_32(values[i]), 4))
+			if ((uint32_t)values[i] == swap_32(values[i])
+				|| is_bit_byte_flip(orig_val ^ swap_32(values[i]))
+				|| is_arith(orig_val, swap_32(values[i]), 4)
+				|| is_interest(orig_val, swap_32(values[i]), 4, 1))
 				continue;
 
 			*(uint32_t*)(buf + cur) = swap_32(values[i]);
@@ -385,7 +441,7 @@ static bool arithm_16(char *buf, int32_t len)
 				pprintf(buf);
 			}
 
-			*(uint16_t*)(buf + i) = orig_val;
+			*(uint16_t*)(buf + cur) = orig_val;
 		}
 	}
 	return true;
@@ -428,7 +484,7 @@ static bool arithm_32(char *buf, int32_t len)
 				pprintf(buf);
 			}
 
-			*(uint32_t*)(buf + i) = orig_val;
+			*(uint32_t*)(buf + cur) = orig_val;
 		}
 	}
 	return true;
@@ -436,7 +492,23 @@ static bool arithm_32(char *buf, int32_t len)
 
 bool fuzz_mutate(char *buf, int32_t len)
 {
-	// This will use the helper functions in this file
-	// to create deterministic and random test cases.
+	pprintf("bitflip 1");
+	bitflip_n(buf, len, 1);
+	pprintf("bitflip 2");
+	bitflip_n(buf, len, 2);
+	pprintf("bitflip 4");
+	bitflip_n(buf, len, 4);
+	pprintf("arithm 8");
+	arithm_8(buf, len);
+	pprintf("arithm 16");
+	arithm_16(buf, len);
+	pprintf("arithm 32");
+	arithm_32(buf, len);
+	pprintf("int 8");
+	interesting_8(buf, len);
+	pprintf("int 16");
+	interesting_16(buf, len);
+	pprintf("int 32");
+	interesting_32(buf, len);
 	return true;
 }
