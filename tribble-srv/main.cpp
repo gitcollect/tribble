@@ -71,6 +71,8 @@ void CALLBACK cmd_tribble(std::string param)
 	}
 	else
 		usage();
+
+	free(param_str);
 }
 
 void CALLBACK mainloop()
