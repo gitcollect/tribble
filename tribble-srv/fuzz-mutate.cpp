@@ -287,8 +287,6 @@ static bool interesting_8(char *buf, int32_t len)
 			if (is_bit_byte_flip(orig_val ^ (uint8_t)values[i]) || is_arith(orig_val, (uint8_t)values[i], 1))
 				continue;
 
-			pprintf("buf[%u] (%c, %d) replaced with (%c, %d)", i, orig_val, orig_val, values[i], values[i]);
-
 			buf[cur] = values[i];
 			pprintf(buf);
 			buf[cur] = orig_val;
